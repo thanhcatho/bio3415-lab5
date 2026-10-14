@@ -47,3 +47,49 @@ plotQualityProfile(fnFs)
 plotQualityProfile(fnRs)
 ```
 
+
+## 8.8.3 Question 2
+##### Have a code chunk that generates the same output but for the reveres read.
+
+```{r}
+#| warning=FALSE
+library(dplyr)
+
+#Read trimming
+#R1
+filtFs <- here::here("outputs/filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+names(filtFs) <- sample.names
+#R2
+filtRs <- here::here("outputs/filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtRs) <- sample.names
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(240,160),
+              maxN=0, maxEE=c(2,2), truncQ = 2 ,rm.phix=TRUE,
+              compress=TRUE, multithread = TRUE)
+
+out2 <- as.data.frame(out) %>% mutate(prop = (100*(reads.out/reads.in)))
+head(out2)
+
+# Learn error rates for forward and reverse reads
+errF <- learnErrors(filtFs, multithread=T)
+errR <- learnErrors(filtRs, multithread=T)
+
+# Visualize the learned errors for the foward reads
+plotErrors(errF, nominalQ=TRUE)
+
+# Visualize the learned errors for the reverse reads
+plotErrors(errR, nominalQ=TRUE)
+
+# Export reverse-read error plot to PDF
+pdf(
+  here::here("outputs", "reverse_error_rates.pdf"),
+  width = 8,
+  height = 6
+)
+
+plotErrors(errR, nominalQ = TRUE)
+```
+
+##### Do you see similar results for the revers reads?
+- The reverse reads show a similar general trend, with error rates decreasing as quality scores increase. 
+- However, reverse reads may have higher error rates or more variability than forward reads, particularly at lower quality scores, because reverse-read quality tends to decline toward the end of sequencing
