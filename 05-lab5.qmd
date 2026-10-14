@@ -5,23 +5,45 @@ format: html
 editor: visual
 ---
 
-## Quarto
+## 8.2.1.1 Question 1
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+##### In real-world analysis, you would inspect all files, not just the first two. Make sure that your code chunk checks all forward and reverse files.
 
 ```{r}
-1 + 1
+# Load the library
+library(dada2)
+library(phyloseq)
+
+data_dir <- here::here("data/MiSeq_SOP")
+
+# Identify all forward and reverse FASTQ files
+fnFs <- sort(list.files(
+  data_dir,
+  pattern = "_R1_001\\.fastq(\\.gz)?$",
+  full.names = TRUE
+))
+
+fnRs <- sort(list.files(
+  data_dir,
+  pattern = "_R2_001\\.fastq(\\.gz)?$",
+  full.names = TRUE
+))
+
+# Extract sample names
+sample.names <- sub(
+  "_R1_001\\.fastq(\\.gz)?$",
+  "",
+  basename(fnFs)
+)
+
+# Verify matching forward and reverse reads
+stopifnot(length(fnFs) > 0)
+stopifnot(length(fnFs) == length(fnRs))
+
+# Plot quality profiles for ALL forward reads
+plotQualityProfile(fnFs)
+
+# Plot quality profiles for ALL reverse reads
+plotQualityProfile(fnRs)
 ```
 
-You can add options to executable code like this
-
-```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).
