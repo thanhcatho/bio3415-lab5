@@ -238,9 +238,100 @@ Biostrings::writeXStringSet(
 ```
 
 ##### What are the top hits for each sequence? Could you resolve the species? Include the answer including screenshots of the results in your .Rmd file and knited html report.
+- For both ASV25 (firmicutes_candidates) and ASV207 (actinobacteria_candidates), they both have 100 top hits. However, I still could not rsolve the species which they mentioned about uncultured baterium.
 
+- The next chunk code show the screenshots of the results to .qmd report instead of separate them to difference file (such as .rmd)
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-cap: "Screenshot of ASV25 - firmicutes_candidates in BLAST search."
+knitr::include_graphics("ASV25.png")
+```
 
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-cap: "Screenshot of ASV207 - actinobacteria_candidates in BLAST search."
+knitr::include_graphics("ASV207.png")
+```
 
 ## 8.4.1.1 Question 4
+```{r}
+# 8.3.6 Accuracy evaluation
+
+unqs.mock <- seqtab.nochim[grep("Mock", rownames(seqtab.nochim)), ]
+unqs.mock <- sort(unqs.mock[unqs.mock>0], decreasing=TRUE) # Drop ASVs absent in the Mock
+cat("DADA2 inferred", length(unqs.mock), "sample sequences present in the Mock community.\n")
 
 
+mock.ref <- getSequences(file.path(data_dir, "HMP_MOCK.v35.fasta"))
+match.ref <- sum(sapply(names(unqs.mock), function(x) any(grepl(x, mock.ref))))
+cat("Of those,", sum(match.ref), "were exact matches to the expected reference sequences.\n")
+
+# 8.4 Sample analysis
+library(ggplot2)
+library(vegan)
+library(Biostrings)
+
+#lets see what it looks like
+
+mdta <- read.delim(base::paste(data_dir,"mouse.dpw.metadata", sep = "/" ))
+
+mdta
+
+#Are the sample names similar to the sample names we have in the ASV table?
+length(mdta$group %in% colnames(ASV_tbl))
+
+#set the row names and massage the table
+
+library(tidyverse)
+mdta <- mdta %>% mutate(category = if_else(dpw > 100 , "Late","Early")) %>% 
+  mutate(gender = if_else(str_detect(group, "F"),"F","M")) %>%
+  mutate(subject = str_extract(str_split_fixed(group, "D", 2)[,1],"(\\d)+")) %>%
+  `row.names<-`(mdta$group)
+
+
+#Generating the phyloseq object
+
+library(phyloseq)
+# Remove the Illumina run identifiers (everything from the first underscore onwards)
+colnames(ASV_tbl) <- sapply(strsplit(colnames(ASV_tbl), "_"), `[`, 1)
+
+# Verify that they now match your metadata row names
+all(colnames(ASV_tbl) == rownames(mdta))
+
+ps <- phyloseq(otu_table(as.matrix(ASV_tbl), taxa_are_rows=T), 
+               sample_data(mdta), 
+               tax_table(as.matrix(taxa2)))
+
+ps <- merge_phyloseq(ps, ASV_seqs)
+
+ps
+
+
+# 8.4.1 Alpha diversity visualization
+
+#Lets calculate richness and diversity
+#Shannon and Simpson are diversity estimators, ACE is a richness estimator, observed is how many ASVs we have (198)
+#Lets calculate richness and diversity
+#Shannon and Simpson are diversity estimators, ACE is a richness estimator, observed is how many ASVs we have (198)
+rnd <- estimate_richness(
+  ps, measures=c("Observed", "ACE","Shannon", "Simpson")) %>% 
+  dplyr::select(-se.ACE)
+
+DT::datatable(rnd[1:2])
+
+
+DT::datatable(rnd[1:2])
+
+
+# Export the alpha diversity table to a CSV file
+write.csv( rnd, file = "alpha_diversity.csv", row.names = TRUE)
+
+```
+
+
+##
+```{r}
+
+```
