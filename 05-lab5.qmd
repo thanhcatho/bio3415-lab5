@@ -101,12 +101,13 @@ plotErrors(errR, nominalQ = TRUE)
 
 ##### Select two ASVs - one from phylum Firmicutes and one from phylum Actinobacteria, for which the taxonomic classifier couldn’t determine genus and species
 ```{r}
-# 8.3.0.1 ASV inference
+#| results: hide
 
+library(Biostrings)
+
+# ASV inference
 dadaFs <- dada(filtFs, err=errF, multithread = TRUE)
-dadaFs
 dadaRs <- dada(filtRs, err=errF, multithread = TRUE)
-dadaRs
 
 mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
 
@@ -117,21 +118,18 @@ seqtab <- makeSequenceTable(mergers)
 
 dim(seqtab)
 
-# ---------------------
-# 8.3.2.1 Sanity checks are important
+# Sanity checks are important
 
 table(nchar(getSequences(seqtab)))
 
-# 8.3.3 Chimera removal
+# Chimera removal
 
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=F, verbose=TRUE)
 #Proportion ASVs were removed due to chimeras?
 100-(dim(seqtab.nochim)[2]/dim(seqtab)[2]*100)
 sum(seqtab.nochim)/sum(seqtab)*100
 
-
-# ---------------------
-# 8.3.3.1 Read retention through the pipeline: final sanity check
+# Read retention through the pipeline: final sanity check
 
 getN <- function(x){ 
   sum(getUniques(x))
@@ -143,15 +141,12 @@ colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "n
 rownames(track) <- sample.names
 
 
-# ---------------------
-# 8.3.3.2 Data polishing part 1
+# Data polishing part 1
 
 ASV_tbl <- as.data.frame(seqtab.nochim) %>% 
   `colnames<-`(base::paste("ASV", seq(1:ncol(seqtab.nochim)), sep = ""))
 
 DT::datatable(ASV_tbl, options = list(scrollX = TRUE, autoWidth = TRUE))
-
-
 
 ASV_tbl <- as.data.frame(t(ASV_tbl[-nrow(ASV_tbl),]))
 
@@ -160,16 +155,12 @@ ASV_tbl <- as.data.frame(t(ASV_tbl[-nrow(ASV_tbl),]))
 ASV_tbl <- ASV_tbl %>% mutate(rs = rowSums(ASV_tbl)) %>% 
   filter(rs > 0) %>% dplyr::select(-rs)
 
-library(Biostrings)
 #Using DNAStringSet from Biostrings to read the seqs 
 ASV_seqs <- DNAStringSet(base::colnames(seqtab.nochim) %>% 
                            `names<-`(base::paste("ASV",seq(1:ncol(seqtab.nochim)),sep = "")))
 
-
 taxa <- assignTaxonomy(seqtab.nochim, here::here("data/silva_nr99_v138.1_wSpecies_train_set.fa.gz"), multithread=TRUE)
 
-
-# ---------------------
 # 8.3.4.1 Data polishing part 2
 taxa2 <- as.data.frame(taxa) %>% 
   `row.names<-`(base::paste("ASV", seq(1:nrow(taxa)), sep = ""))
@@ -196,7 +187,9 @@ colSums(taxa3[,(ncol(taxa2)+2):ncol(taxa3)])
 
 ASV_seqs[names(ASV_seqs)%in%ASV_tbl2$ASVs] 
 
+```
 
+```{r}
 
 # Find Firmicutes ASVs without genus and species assignments
 firmicutes_candidates <- taxa2 %>%
@@ -221,13 +214,7 @@ actinobacteria_candidates
 selected_ASVs <- c("ASV25", "ASV207")
 
 # Extract their DNA sequences
-selected_seqs <- ASV_seqs[
-  names(ASV_seqs) %in% selected_ASVs
-]
-
-# Check that both sequences were found
-selected_seqs
-length(selected_seqs)
+selected_seqs <- ASV_seqs[ names(ASV_seqs) %in% selected_ASVs]
 
 # Export to a FASTA file for BLAST
 Biostrings::writeXStringSet(
@@ -257,27 +244,27 @@ knitr::include_graphics("ASV207.png")
 
 ## 8.4.1.1 Question 4
 ```{r}
-# 8.3.6 Accuracy evaluation
+#| results: hide
+
+library(ggplot2)
+library(vegan)
+library(Biostrings)
+library(phyloseq)
+
+# Accuracy evaluation
 
 unqs.mock <- seqtab.nochim[grep("Mock", rownames(seqtab.nochim)), ]
 unqs.mock <- sort(unqs.mock[unqs.mock>0], decreasing=TRUE) # Drop ASVs absent in the Mock
 cat("DADA2 inferred", length(unqs.mock), "sample sequences present in the Mock community.\n")
 
-
 mock.ref <- getSequences(file.path(data_dir, "HMP_MOCK.v35.fasta"))
 match.ref <- sum(sapply(names(unqs.mock), function(x) any(grepl(x, mock.ref))))
 cat("Of those,", sum(match.ref), "were exact matches to the expected reference sequences.\n")
 
-# 8.4 Sample analysis
-library(ggplot2)
-library(vegan)
-library(Biostrings)
-
-#lets see what it looks like
+# Sample analysis
 
 mdta <- read.delim(base::paste(data_dir,"mouse.dpw.metadata", sep = "/" ))
 
-mdta
 
 #Are the sample names similar to the sample names we have in the ASV table?
 length(mdta$group %in% colnames(ASV_tbl))
@@ -292,8 +279,6 @@ mdta <- mdta %>% mutate(category = if_else(dpw > 100 , "Late","Early")) %>%
 
 
 #Generating the phyloseq object
-
-library(phyloseq)
 # Remove the Illumina run identifiers (everything from the first underscore onwards)
 colnames(ASV_tbl) <- sapply(strsplit(colnames(ASV_tbl), "_"), `[`, 1)
 
@@ -306,13 +291,9 @@ ps <- phyloseq(otu_table(as.matrix(ASV_tbl), taxa_are_rows=T),
 
 ps <- merge_phyloseq(ps, ASV_seqs)
 
-ps
 
+# Alpha diversity visualization
 
-# 8.4.1 Alpha diversity visualization
-
-#Lets calculate richness and diversity
-#Shannon and Simpson are diversity estimators, ACE is a richness estimator, observed is how many ASVs we have (198)
 #Lets calculate richness and diversity
 #Shannon and Simpson are diversity estimators, ACE is a richness estimator, observed is how many ASVs we have (198)
 rnd <- estimate_richness(
@@ -320,19 +301,17 @@ rnd <- estimate_richness(
   dplyr::select(-se.ACE)
 
 DT::datatable(rnd[1:2])
+```
 
-
-DT::datatable(rnd[1:2])
-
-
+```{r}
 # Export the alpha diversity table to a CSV file
 write.csv( rnd, file = "alpha_diversity.csv", row.names = TRUE)
-
 ```
 
 
 ## 8.4.1.2 Question 5
 ```{r}
+#| results: hide
 library(ggplot2)
 library(RColorBrewer)
 
@@ -342,6 +321,12 @@ rndl <- rnd %>% gather("Estimator", "Value", 1:4) %>%
   mutate(rd = if_else(Estimator == "Observed" | Estimator == "ACE", 
                       "Richness","Diversity"))
 
+ggplot(rndl, aes(x=dpw, y=Value, color = Estimator, fill= Estimator))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  facet_grid(rd~category, scales = "free")
+```
+
+```{r}
 
 # Create the improved plot with theme_bw() and a colorblind-friendly palette (e.g., "Set2" or "Dark2")
 p <- ggplot(rndl, aes(x = dpw, y = Value, color = Estimator, fill = Estimator)) +
